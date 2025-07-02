@@ -1,111 +1,123 @@
-package posModel {
-	class Date {
-		attribute value: String;
-	}					
+package posModel {		
 	class Customer {				
 		attribute name: String;			
-	}	
+	}
+
 	class Cashier { 
 		attribute name: String;	
-	}				
+	}
+
 	class Sale {				
 		attribute id: String;	
-		attribute date: Date;		
-		attribute total: Real;			
+		attribute date: String;		
+		attribute totalCost: Real;			
 		attribute isComplete: Boolean;		
 	}
-	class Register {						
+
+	class PosTerminal {						
 	}	
-	class Store{
+
+	class Store {
 		attribute address: String;
 		attribute name: String;
 	}
+
 	class Item { 
 		attribute id: String;
 	}				
+
 	class ProductDescription {		
 		attribute desc: String;		
 		attribute price: Real;			
 		attribute tax: Real;
 		attribute upc: String;			
 	}
-	class ProductCatalog{
+
+	class ProductCatalog {
 	}
+
 	class SalesLineItem {				
 		attribute quantity: Integer;	
-	}	
+	}
+
 	class Payment {	
 		attribute amount: Real;										
 	}
+
 	class CashPayment extends Payment {				
 		attribute amountTendered: Real;			
 	}
+
 	class CreditPayment extends Payment {		
 	}
+	
 	class GiftCertPayment extends Payment {				
 	}
-	class GiftCertificate{
+
+	class GiftCertificate {
 		attribute id: String;
   		attribute amount: Real;
-	}		
+	}
+
 	class CreditCard {	
 		attribute number: String;
 		attribute expireDate: String;
 	}	
-	class AuthService{
+	
+	class AuthService {
 		attribute name: String;
   		attribute address: String;
 	}
 }
 
 association ProvidedWith
-  store: Store[*]
-  authService: AuthService[*]
+  store: Store[0..*]
+  authService: AuthService[0..*]
 end
 
 association Stocks
-  store: Store [1] 
-  item: Item [*] 
+  store: Store [1..1] 
+  item: Item [0..*] 
 end
 
 association RecordsSaleOf
 	salesLineItem: SalesLineItem[0..1]
-	item: Item[+]
+	item: Item[1..*]
 end	
 
 association ContainedIn	
-	sale: Sale[1]
-	salesLineItem: SalesLineItem[+]
+	sale: Sale[1..1]
+	salesLineItem: SalesLineItem[1..*]
 end	
 
 association Describes
-	prdDesc: ProductDescription[1]
-	item: Item[*]
+	productDescription: ProductDescription[1..1]
+	item: Item[0..*]
 end
 
 association DescribedBy
-  salesLineItem: SalesLineItem[*]  
-  productDesc: ProductDescription[1] 
+  salesLineItem: SalesLineItem[0..*]  
+  productDesc: ProductDescription[1..1] 
 end
 
 association Contains
-  prdtCtlg: ProductCatalog[1]
+  prdtCtlg: ProductCatalog[1..1]
   prdtDesc: ProductDescription[1..*] 
 end
 
 association UsedBy
-  prdtCtlg: ProductCatalog[1] 
-  store: Store[*] 
+  prdtCtlg: ProductCatalog[1..1] 
+  store: Store[0..*] 
 end
 
-association Houses  
-  store: Store[1]
-  register: Register[1..*]
+association Owns  
+  store: Store[1..1]
+  posTerminal: PosTerminal[1..*]
 end
 
 association CapturedOn
-	sale: Sale[?]
-	register: Register[1]
+	sale: Sale[0..1]
+	posTerminal: PosTerminal[1..1]
 end
 
 association LogsCompleted
@@ -114,38 +126,38 @@ association LogsCompleted
 end
 
 association IsFor
-  sale: Sale[*] 
-  customer: Customer[1] 
+  sale: Sale[0..*] 
+  customer: Customer[1..1] 
 end
 
-association WorksOn
-	cashier: Cashier[1]
-	register: Register[1]
+association WorksAt
+	cashier: Cashier[1..1]
+	posTerminal: PosTerminal[1..1]
 end
 
 association Approves
-  authService: AuthService[1] 
-  payment: CreditPayment[*]   
+  authService: AuthService[1..1] 
+  payment: CreditPayment[0..*]   
 end
 
 association PaidBy
-	sale: Sale[1]
-	payment: Payment[1]
+	sale: Sale[1..1]
+	payment: Payment[1..1]
 end
 
 association Logs
-  store: Store[1] 
-  accountsReceivable: CreditPayment[*] 
+  store: Store[1..1] 
+  accountsReceivable: CreditPayment[0..*] 
 end
 
 association PaidWith 
   payment: GiftCertPayment[0..1]  
-  giftCert: GiftCertificate[1] 
+  giftCert: GiftCertificate[1..1] 
 end
 
 association CheckedBy 
-  payment: CreditPayment[*]  
-  creditCard: CreditCard[1]  
+  payment: CreditPayment[0..*]  
+  creditCard: CreditCard[1..1]  
 end
 
 actor Cashier
@@ -164,199 +176,265 @@ actor PaymentAuthServiceSystem
 end
 
 usecase ProcessSales		
-	description = 'This use-case describes the process sale of Cashier'	
+	description = 'This use case describes the process of a cashier processing a sale at a point of sale (POS) system. 
+				   After the sale is completed, the inventory and accounting systems are updated accordingly.'
 	primaryActor = Cashier	
 	secondaryActors = {InventorySystem, AccountingSystem}
 	
-	ucPrecondition	
-		description = 'Cashier is identified and authenticated. Customer is ready to buy.'
-		_cashier: Cashier;
-		_customer: Customer;
-		_sale: Sale;
-		_pos: Register;
-		_items: Set(Item);
+	ucPrecondition
+		description = 'Preconditions:
+			(1) There must be a a store where the sale is taking place (physical), and a version of it inside the system (digital). The physical store is tracked by the digital store.
+			(2) There must be a POS terminal available at the store (physical), and a version of it inside the system (digital). The digital POS terminal is owned by the digital store. The physical POS terminal is tracked by the digital POS terminal.
+			(3) There must be a cashier who works at the POS terminal (physical), and a version of them inside the system (digital). The physical cashier is tracked by the digital cashier.
+			(4) There must be a customer ready to make a purchase (physical).
+			(5) There must be some items selected by the customer for purchase (physical). The list of items must not be empty.
+			(6) There must be a sale for the customer (physical). The physical sale is not complete yet.'
+		_store: Store;
 		store: Store;
-		pos: Register;
+		_pos: PosTerminal;
+		pos: PosTerminal;
+		_cashier: Cashier;
 		cashier: Cashier;
-		(_sale, _customer): IsFor;
-		(_cashier, _pos): WorksOn;
+		_customer: Customer;
+		_items: Set(Item);
+		_sale: Sale;
+
+		(_store, store): _Tracks;
+		(store, pos): Owns;
 		(_pos, pos): _Tracks;
+		(_sale, _customer): IsFor;
+		(_cashier, _pos): WorksAt;
 		(_cashier, cashier): _Tracks;
-		(store, pos): Houses;
+
 		[_sale.isComplete = false]	
-		[_items->isEmpty() = false]	
+		[_items->isEmpty() = false]
 	end		
 	
 	ucPostcondition	
-		description = 'Sale is saved. Tax is correctly calculated. Accounting and Inventory are updated. Commissions recorded. Receipts are generated.'
+		description = 'Postconditions:
+			(1) There must be a sale in the system (digital) equivalent to the physical sale. The physical sale is tracked by the digital sale.
+			(2) The digital sale must be logged as completed in the digital store.
+			(3) Both versions of the sale must stop being captured on their respective POS terminals, and are considered completed.
+			(4) The digital sale must have its total cost defined.'
 		sale: Sale;
-		(_sale, sale):_Tracks;
+
+		(_sale, sale): _Tracks;
 		(store, sale): LogsCompleted;
 		!(sale, pos): CapturedOn;	
 		!(_sale, _pos): CapturedOn;	
-		[sale.isComplete = true]
-		[sale.total.oclIsUndefined() = false]
+
 		[_sale.isComplete = true]
+		[sale.isComplete = true]
+		[sale.totalCost.oclIsUndefined() = false]
 	end	
 	
 	actStep step01 	
-	description = '1. Customer arrives at POS checkout with goods and/or services to purchase'
+	description = 'Step 1. The customer brings items to the POS terminal.
+		(Actor actions) None.
+		(Preconditions) The customer arrives at the POS terminal with some items to purchase. 
+		The list of items must not be empty.
+		(Postconditions) None'
 	from
-		_pos: Register;
 		_customer: Customer;
-		_sale: Sale;
+		_pos: PosTerminal;
 		_items: Set(Item);		
-		(_sale, _customer): IsFor;
+
 		[_items->isEmpty() = false]
 	to			
 	end	
 	
 	actStep step02	
-	description = '2. Cashier starts a new sale'
+	description =  'Step 2. The cashier starts a new sale for the customer.
+		(Actor actions) None.
+		(Preconditions) The cashier who works at the POS terminal starts a new sale for the customer.
+		(Postconditions) After that, the sale for the customer is created and captured on the POS terminal, as its total cost set to the default value (0) and is not considered complete yet.'
 	from
-		_pos: Register;
 		_cashier: Cashier;
+		$_pos: PosTerminal;
 		_sale: Sale;
-		(_cashier, _pos): WorksOn;
+		$_customer: Customer;
+
+		(_cashier, _pos): WorksAt;
 	to	
+		(_sale, _customer): IsFor;
 		(_sale, _pos): CapturedOn;
-		[_sale.total = 0]
+
+		[_sale.totalCost = 0]
 		[_sale.isComplete = false]
 	end	
 
 	sysStep step03	
-	description = '3. The system creates a new sale and requires the cashier to enter items'
+	description = 'Step 3. The system shows the cashier the sale information and their own information, then creates a digital version of the sale.
+		(Preconditions) The system sets the context for the process, by referencing the physical sale, POS terminal, and cashier, to create the respective digital versions for the POS terminal and the cashier (which track their physical versions). Moreover, the digital version of the cashier is linked to the digital POS terminal.
+		The system also generates the current date for the sale.
+		(Postconditions) The digital version of the sale is created (which tracks the physical sale), and the sale is captured on the digital POS terminal. The system must ensures that the sale is defined at this point, with its date set to the current date, its total cost set to 0, and is not considered complete yet.
+		(System actions) Then, the system sends the sale information to the cashier, including the sale ID and total cost, as well as their own information, including their name.'
 	from
-		_sale: Sale;
-		_pos: Register;		
-		_cashier: Cashier;		
-		$pos: Register;
-		$cashier: Cashier;
-		$curDate: Date;	
-		(cashier, pos): WorksOn;			
+		$_sale: Sale;
+		$_pos: PosTerminal;		
+		$_cashier: Cashier;		
+		pos: PosTerminal;
+		cashier: Cashier;
+		currentDate: String;
+
 		(_pos, pos): _Tracks;
-		(_cashier, cashier): _Tracks;	
-		
+		(_cashier, cashier): _Tracks;
+		(cashier, pos): WorksAt;			
 	to	
 		sale: Sale;		
-		(sale, pos): CapturedOn;				
+
 		(_sale, sale): _Tracks;
+		(sale, pos): CapturedOn;				
+
 		[sale.oclIsUndefined() = false]
-		[sale.total = 0]
-		[sale.date = curDate]
+		[sale.date = currentDate]
+		[sale.totalCost = 0]
+		[sale.isComplete = false]
 	actions	
-		Cashier <- saleInfor: Sequence(OclAny) = Sequence{sale.id, sale.total};
-		Cashier <- cashierInfor: Sequence(OclAny) = Sequence{cashier.name};
+		Cashier <- saleInformation: Sequence(OclAny) = Sequence{sale.id, sale.totalCost};
+		Cashier <- cashierInformation: Sequence(OclAny) = Sequence{cashier.name};
 	end
 	
 	actStep step04  	
-	description = '4. Cashier enters item identifier'
+	description = 'Step 4. The cashier select the first item in the customer\'s purchase list and enters its ID into the system. Then, a sales line item is created for the selected item.
+		(Actor actions) The cashier selects the first item from the list of items to be purchased by the customer, and enters its ID into the system.
+		(Preconditions) The physical sale, list of items, and the selected item must be available. The selected item must be included in the list of items, and has its ID equal to the entered item ID. The selected item must not have any sales line items associated with it yet.
+		(Postconditions) A sales line item is created for the selected item, which is contained in the sale, and records the sale of the selected item. The sales line item is created with a quantity of 1, and must be defined at this point.'
 	from
-		_sale: Sale;
-		_items: Set(Item);
-		$_item: Item;
+		$_sale: Sale;
+		$_items: Set(Item);
+		_item: Item;
+
 		[_items->includes(_item)]
 		[_item.id = itemId]
 		[_item.salesLineItem->isEmpty()]
-	to			
+	to
 		_salesLineItem: SalesLineItem;		
+
 		(_salesLineItem, _sale): ContainedIn;
-		(_salesLineItem, _item): RecordsSaleOf;		
-		[_salesLineItem.oclIsUndefined() = false]
+		(_salesLineItem, _item): RecordsSaleOf;	
+
 		[_salesLineItem.quantity = 1]
+		[_salesLineItem.oclIsUndefined() = false]
 	actions
 		Cashier -> itemId: String;
 	end	
 	
-	sysStep step05 	
-	description = '5. System records sale line item and presents item description, price, 
-				   and running total with calculated tax. Price calculated from a set of price rules.'
+	sysStep step05
+	description = 'Step 5. The system creates a digital sales line item for the selected product, updates the sale total cost and the list of items, and notifies the cashier.
+	(Preconditions) The system sets the context for the process, by referencing the physical sales line item, item list, and selected item, as well as the digital sale, to create the respective digital version for the selected item (which tracks its physical version). The system also retrieves the product description that describes the selected item from the product catalog.
+	(Postconditions) The digital version of the sales line item is created (which tracks the physical sales line item), and it is contained in the digital sale, records the sale of the (digital) selected item, and is described by the product description. The system must ensures that the sales line item is defined at this point, with a quantity of 1, and the total cost of the sale is updated as the previous total cost plus the product price multiplied by one plus its tax rate. The system also ensures that the selected item is no longer included in the list of items (as it has been processed).
+	(System actions) Then, the system sends the item information to the cashier, including the product description, price, and UPC code, as well as the sale information, including the total cost of the sale.'
 	from
-		_item: Item;
-		_salesLineItem: SalesLineItem;	
-		sale: Sale;
-		$item: Item;
-		$prdDesc: ProductDescription;
-		(prdDesc, item): Describes;
+		$_salesLineItem: SalesLineItem;	
+		$_items: Set(Item);
+		$_item: Item;
+		$sale: Sale;
+		item: Item;
+		productDescription: ProductDescription;
+
 		(_item, item): _Tracks; 
+		(productDescription, item): Describes;
 	to 	
 		salesLineItem: SalesLineItem;
+
+		(_salesLineItem, salesLineItem): _Tracks;
 		(salesLineItem, sale): ContainedIn;
 		(salesLineItem, item): RecordsSaleOf;
-		(salesLineItem, prdDesc): DescribedBy;
-		(_salesLineItem, salesLineItem): _Tracks;
+		(salesLineItem, productDescription): DescribedBy;
+
 		[salesLineItem.oclIsUndefined() = false]
 		[salesLineItem.quantity = 1]
-		[sale.total = sale@pre.total + prdDesc.price * prdDesc.tax]
+		[sale.totalCost = sale@pre.totalCost + productDescription.price * (1 + productDescription.tax)]
+		[_items->excludes(_item)]
 	actions	
-		Cashier <- itemInfor: Sequence(OclAny) = Sequence{prdDesc.desc, prdDesc.price, prdDesc.upc};
-		Cashier <- saleInfor: Sequence(OclAny) = Sequence{sale.total};
-	end	
+		Cashier <- itemInformation: Sequence(OclAny) = Sequence{productDescription.desc, productDescription.price, productDescription.upc};
+		Cashier <- saleInformation: Sequence(OclAny) = Sequence{sale.totalCost};
+	end
 	
 	rejoinStep step04 
-	description = '(*) Cashier repeats steps 4-5 until indicates done.'
+	description = 'The cashier repeats step 4 and step 5 for each item in the customer\'s purchase list.
+		(Condition) When there is still items left in the list.'
 	when
 		_items: Set(Item);
-		$_item: Item;
-		[_items->includes(_item)]
-		[_item.salesLineItem.oclIsUndefined()]
+
+		[_items->isEmpty() = false]
 	end
 	
-	sysStep step06 		
-	description = '6. System presents total with taxes calculated'	
+	sysStep step05
+	description = 'Step 5. The system presents the payment information to the cashier.
+		(Preconditions) The system sets the context for the process, by referencing the digital sale.
+		(Postconditions) None.
+		(System actions) The system presents the payment information to the cashier, including the total cost of the sale.'
 	from
-		sale: Sale;
+		$sale: Sale;
 	to		
 	actions		
-		Cashier <- paymentInfor: Real = sale.total;
+		Cashier <- paymentInformation: Real = sale.totalCost;
 	end
 	
-	actStep step07
-	description = '7. Cashier tells Customer the total and asks for payment'
+	actStep step06
+	description = 'Step 6. The cashier informs the customer about the total cost of the sale, and asks how they want to pay.
+		(Actor actions) None.
+		(Preconditions) The system sets the context for the process, by referencing the both versions of the sale (physical and digital).
+		(Postconditions) The total cost of the sale is synchronized between the physical and digital versions of the sale.'
 	from
-		_sale: Sale;
-		sale: Sale;
+		$_sale: Sale;
+		$sale: Sale;
 	to	
-		[_sale.total = sale.total]
+		[_sale.totalCost = sale.totalCost]
 	end
 	
-	inclStep step08
-	description = '8. Customer wants to pay the sale by cash. The use case HandleCashPayment is involked.'
-		HandleCashPayment 
+	inclStep step07
+	description = 'Step 7a. In case the customer wants to pay by cash.
+		(Invoke) The use case HandleCashPayment is invoked to handle the cash payment process.'
+		HandleCashPayment
 	end
 		
-	sysStep step09 	
-	description = '9. System logs completed sale and sends sale and payment information to the external Accounting system (for accounting and commissions) and Inventory system (to update inventory)'
+	sysStep step09
+	description = 'Step 9. The system logs the completed sale and sends sale and payment information to the external accounting system (for accounting and commissions) and inventory system (to update inventory).
+		(Preconditions) The system sets the context for the process, by referencing the digital sale, POS terminal, and store. The payment data from the previous steps is also referenced. The sale must be captured on the POS terminal and marked as paid by the payment. The store must not had logged the sale as completed yet. The sale must be marked as not complete yet.
+		(Postconditions) The sale is no longer captured on the POS terminal, and is logged as completed in the store. The sale is marked as complete.
+		(System actions) The system sends the sale information (including the sale data and payment data) to the Accounting system and Inventory system.'
 	from
-		store: Store;
-		sale: Sale;
-		pos: Register;
+		$store: Store;
+		$sale: Sale;
+		$pos: PosTerminal;
 		$payment: Payment;
+
 		(sale, pos): CapturedOn;
 		(sale, payment): PaidBy;
+
 		!(store, sale): LogsCompleted;
 		[sale.isComplete = false]
 	to	
 		!(sale, pos): CapturedOn;
 		(store, sale): LogsCompleted;
+
 		[sale.isComplete = true]
 	actions	
-		AccountingSystem <- saleInfor2AccSys: Sequence(OclAny) = Sequence{sale, payment};
-		InventorySystem  <- saleInfor2InvSys: Sequence(OclAny) = Sequence{sale, payment};
+		AccountingSystem <- saleInformationToAccountingSystem: Sequence(OclAny) = Sequence{sale, payment};
+		InventorySystem  <- saleInformationToInventorySystem: Sequence(OclAny) = Sequence{sale, payment};
 	end	
 	
 	actStep step10  	
-	description = '10. Customer leaves with receipt and goods (if any)'
+	description = 'Step 10. The cashier thanks the customer for their purchase, and the sale is completed.
+		(Actor actions) None.
+		(Preconditions) The system sets the context for the process, by referencing the physical sale and POS terminal.
+		(Postconditions) The physical sale is no longer captured on the POS terminal, and is considered completed.'
 	from
-		_pos: Register;
+		_pos: PosTerminal;
 		_sale: Sale;	
 	to	
-		!(_sale, _pos): CapturedOn;		
+		!(_sale, _pos): CapturedOn;
+
 		[_sale.isComplete = true]
-	end	
+	end
 	
-	altStep at step08 
-		description = 'Customer wants to pay the sale by credit payment.'
+	altStep at step07 
+		description = 'Step 7b. In case the customer wants to pay by credit card.
+			(Condition) The customer has a credit card to pay with.
+			(Invoke) The use case HandleCreditPayment is invoked to handle the credit payment process.'
 		when
 			$_creditCard: CreditCard;			
 		end
@@ -365,11 +443,12 @@ usecase ProcessSales
 			HandleCreditPayment 
 		end
 	end
-	
-	extensionPoint PaidByGiftCert at {step08}
-	description = 'This extension flow occurs when Customer wants to pay with gift certificate'
+
+	extensionPoint PaidByGiftCert at {step07}
+	description = 'Step 8. This extension point is invoked in case the customer wants to pay by gift certificate, in addition to their payment.
+	(Condition) The customer has a gift certificate to pay with.'
 	when
-		$_giftCert: GiftCertificate;		
+		_giftCert: GiftCertificate;		
 	end	
 end
 
@@ -389,8 +468,8 @@ usecase HandleCashPayment
 	description = 'The sale is paid by a cash payment.'
 		cashPayment: CashPayment;
 		(sale, cashPayment): PaidBy;
-		[cashPayment.amountTendered >= sale.total]
-		[cashPayment.amount = sale.total]
+		[cashPayment.amountTendered >= sale.totalCost]
+		[cashPayment.amount = sale.totalCost]
 	end
 	
 	actStep step01
@@ -417,7 +496,7 @@ usecase HandleCashPayment
 		sale: Sale;
 	to
 	actions
-		Cashier <- balanceDue: Real = _cashPayment.amountTendered - sale.total;
+		Cashier <- balanceDue: Real = _cashPayment.amountTendered - sale.totalCost;
 	end
 
 	actStep step4 	
@@ -450,16 +529,16 @@ usecase HandleCreditPayment
 	ucPrecondition	
 	description = 'Customer is ready to pay the sale by a credit payment.'
 		_customer: Customer;
-		_pos: Register;
+		_pos: PosTerminal;
 		_sale: Sale;		
 		_creditCard: CreditCard;
 		store: Store;
-		pos: Register;
+		pos: PosTerminal;
 		authService: AuthService;
 		sale: Sale;
 		creditCard: CreditCard;		
 		(store, authService): ProvidedWith;
-		(store, pos): Houses;
+		(store, pos): Owns;
 		(_sale, _pos): CapturedOn;
 		(_pos, pos): _Tracks;		
 		(_sale, sale): _Tracks;
@@ -501,7 +580,7 @@ usecase HandleCreditPayment
 		[sale.isComplete = false]
 	to	
 	actions
-		PaymentAuthServiceSystem <- paymentAuth: Sequence(OclAny) = Sequence{authService, creditCard, pinNumber, sale.total};
+		PaymentAuthServiceSystem <- paymentAuth: Sequence(OclAny) = Sequence{authService, creditCard, pinNumber, sale.totalCost};
 	end	
 	
 	sysStep step03 
@@ -514,7 +593,7 @@ usecase HandleCreditPayment
 		creditPayment: CreditPayment;
 		(creditPayment, creditCard): CheckedBy;
 		(authService, creditPayment): Approves;
-		[creditPayment.amount = sale.total]
+		[creditPayment.amount = sale.totalCost]
 	actions
 		Cashier <- approvalInfo:String = 'paymentApproval';
 	end	
